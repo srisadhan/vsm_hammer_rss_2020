@@ -1,0 +1,48 @@
+stiff_config        :       ['high_stiffness','low_stiffness','variable_stiffness']
+fixed_magnet        :       ['left', 'right']
+
+# VSM Model paramters
+C1                  :       28.41     # magnet force parameter
+C2                  :       206.35    # magnet force parameter
+M                   :       0.2       # Mass of the hammer
+d                   :       2         # damping
+w                   :       0.03      # width of the magnet blocks
+u_max               :       0.06      # maximum magnet position
+u_min               :       0.0002  
+udot_max            :       0.15
+
+# magnet position constraint when one of the block is fixed
+magnet_cond         :       ['left_mag_fixed', 'right_mag_fixed']
+
+# movement of non-fixed mag [u_min,  u_max]
+left_mag_fixed      :       [ 0.0002, 0.06]
+right_mag_fixed     :       [-0.06,  -0.0002]
+no_mag_fixed        :       [-0.06,   0.06]
+
+# Robot parameters
+freq                :       500         # 200 Hz
+max_robot_acc       :       4.0
+max_robot_vel       :       0.5
+max_robot_disp      :       0.5
+min_robot_disp      :      -0.3
+hammer_vel_range_LS :       [-0.5, 0.5]
+hammer_vel_range_VS :       [-0.8, 0.8]
+
+# Selection of parameters
+tf_range            :       [0.2, 3.0]
+start_pos           :       0.0
+nail_pos            :       0.05
+end_pos             :       0.04
+alpha               :       0.8
+pos_threshold       :       0.03
+
+# filepaths
+two_moving_mags_data                : 'data/processed/two_moving_mags.h5'
+two_moving_mags_optim_tf_model      : 'data/opti_models/two_moving_magnets.nl'
+two_moving_mags_optim_tf_data       : 'data/processed/two_moving_mags_optim_tf.h5'
+two_moving_mags_time_sweep_data     : 'data/processed/two_moving_mags_time_sweep_data.h5'   
+two_moving_mags_sep_sweep_data      : 'data/processed/two_moving_mags_sep_sweep_data.h5'   
+max_vel_time_sweep                  : 'data/processed/max_vel_time_sweep.h5'
+csv_path                            : 'data/processed/csv'
+pareto_path                         : 'data/processed/pareto'
+pareto_front                        : 'data/processed/pareto_front.h5'
