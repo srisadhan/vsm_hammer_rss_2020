@@ -12,9 +12,11 @@ import pyomo.dae as pyodae
 from casadi import *
 
 from models.fixed_magnet_model import one_fixed_magnet
-from models.magnet_model import two_magnets_moving, two_magnets_moving_optimize_tf, user_provided_magnet_separation
+from models.two_moving_magnets_model import trajectory_optimization, optimize_tf_and_vel, user_provided_magnet_separation
 from models.vsm_plots import plot_disp_vel, plot_settings_together, plot_pareto_front
 from models.linear_robot_model import (robot_linear_dynamics, robot_linear_dynamics_optimize_tf, robot_linear_dynamics_optimize_tf_and_alpha)
+from models.pyomo_optimizer import pyomo_classical_solver, pyomo_neos_solver
+from data.pyomo_parse_data import extract_results, extract_results_for_optimal_tf
 
 from utils import skip_run
 import yaml
@@ -24,23 +26,40 @@ import csv
 
 config = yaml.safe_load(io.open('src/config.yml'))
 
-# -------------------------Hammering for RSS paper------------------------ #
-with skip_run('skip', 'optimal_two_magnets_moving') as check, check():    
-    stiff_config    = ['high_stiffness', 'low_stiffness','variable_stiffness']
-    tf              = 1.5
 
-    for setting in stiff_config:
-        if (setting == 'high_stiffness'):
-            data, pyo_model = robot_linear_dynamics(tf, config)
-        else:
-            data, pyo_model = two_magnets_moving(tf, setting, config)
-        plot_disp_vel(data, 'Both_magnets_moving', config)
+with skip_run('run', 'optimization_old') as check, check():    
+    stiff_config    = ['high_stiffness', 'low_stiffness','variable_stiffness']
+    Tf              = [0.5, 1.5]
+    Tf_folder       = ['tf_05', 'tf_15']
+
+    counter = 0
+
+    for tf in Tf: 
+        for setting in stiff_config:
+            if (setting == 'high_stiffness'):
+                pyo_model = robot_linear_dynamics(tf, config)
+            else:
+                pyo_model = trajectory_optimization(tf, setting, config)
+            
+            # Solve the optimization problem and return the optimal results
+            solved_model = pyomo_classical_solver(pyo_model, 'ipopt', config)
+            # solved_model = pyomo_neos_solver(pyo_model, 'snopt', config)
+
+            data, _ , tf = extract_results(solved_model, setting, config)
+            
+            # save the csv files         
+            filepath = str(Path(__file__).parents[1] / config['csv_path']/ Tf_folder[counter] / setting) + '.csv'
+            data.to_csv(filepath, index=False)
+
+            plot_disp_vel(data, setting, config)
+
+        counter += 1
                 
     plt.show()
 
 # Time sweep optimal solution
-with skip_run('skip', 'optimal_two_magnets_moving_time_sweep') as check, check():    
-    Tf              = np.around(np.arange(0.5, 5.0, 0.25), decimals=2)
+with skip_run('skip', 'trajectory_optimization_time_sweep') as check, check():    
+    Tf              = np.around(np.arange(0.25, 5.0, 0.25), decimals=2)
 
     sweep_data      = collections.defaultdict()
     max_velocity    = collections.defaultdict()
@@ -52,10 +71,14 @@ with skip_run('skip', 'optimal_two_magnets_moving_time_sweep') as check, check()
         list_vel  = []
         for setting in config['stiff_config']:
             if (setting == 'high_stiffness'):
-                data, pyo_model = robot_linear_dynamics(tf, config)
+                pyo_model = robot_linear_dynamics(tf, config)
             else:
-                data, pyo_model = two_magnets_moving(tf, setting, config)
-            
+                pyo_model = trajectory_optimization(tf, setting, config)
+                
+            # Solve the optimization problem and return the optimal results
+            solved_model = pyomo_neos_solver(pyo_model, 'snopt', config)
+            data, _ , tf    = extract_results(solved_model, setting, config)
+
             Data[setting]   = data.to_dict()
             
             # optimal velocity value at alpha * tf
@@ -137,60 +160,10 @@ with skip_run('skip', 'load_the_saved_tf_sweep_data') as check, check():
 
     plt.show()
 
-# Separation sweep optimal solution
-with skip_run('skip', 'data_for_two_magnets_sep_sweep') as check, check():
-   
-    tf = 1.0
-    Separations = np.around(np.arange(0.035, 0.06, 0.01), decimals=3)
-    
-    df      = pd.DataFrame()
 
-    for sep in Separations:
-        data, pyo_model = user_provided_magnet_separation(tf, sep, config)
-
-        temp    = pd.DataFrame({'sep': ["sep_" + str(round(i,3)) for i in data['md2']]})
-        data    = data.join(temp, lsuffix='_caller', rsuffix='_other')
-
-        tol_vel = pd.DataFrame({'total_vel' : data['bv'] + data['hv']})
-        data    = data.join(tol_vel, lsuffix='_caller', rsuffix='_other')
-
-        tol_disp= pd.DataFrame({'total_disp' : data['bd'] + data['hd']})
-        data    = data.join(tol_disp, lsuffix='_caller', rsuffix='_other')
-
-        if df.size > 0:
-            df = df.append(data, ignore_index=True)
-        else:
-            df = data
-        
-    # save the data
-    filepath = str(Path(__file__).parents[1] / config['two_moving_mags_sep_sweep_data'])
-    df.to_hdf(filepath, key='df', mode='w')
-
-with skip_run('skip', 'plot_sep_sweep_data') as check, check():
-    # load the data
-    filepath = str(Path(__file__).parents[1] / config['two_moving_mags_sep_sweep_data'])
-    df = pd.read_hdf(filepath, key='df')
-
-    fig,ax  = plt.subplots(2,1)
-
-    sns_palette = sns.color_palette("viridis", n_colors=3, desat=0.5)
-    # sns_palette = sns.cubehelix_palette(5, start=2, rot=-.75)
-
-    g1 = sns.relplot(x="time", y="total_vel", hue="sep", kind="line", palette=sns_palette, data=df, ax=ax[0])
-    g2 = sns.relplot(x="time", y="total_disp", hue="sep", kind="line", palette=sns_palette, data=df, ax=ax[1])
-    
-    plt.close(g1.fig)
-    plt.close(g2.fig) 
-    plt.tight_layout()
-
-    plt.show()
-
-#TODO:R
-# Reformulate the optimization problem for 
-# 1) reaching the nail only after 0.8*tf
-# 2) Maximize the hammer velocity whenever it hits the nail instead of at 0.8 * tf
-# Time optimal trajectory evaluation
-with skip_run('skip', 'optimal_two_magnets_moving_optimize_Tf_and_Vel') as check, check():    
+# -------------------------Hammering with new code------------------------ #
+# Time optimal trajectory evaluation - 3 Weights
+with skip_run('skip', 'optimize_Tf_and_Vel') as check, check():    
     alphas          = [0.8]
 
     Data = collections.defaultdict()
@@ -201,22 +174,26 @@ with skip_run('skip', 'optimal_two_magnets_moving_optimize_Tf_and_Vel') as check
     weights = [[0.9, 0.1], [0.5, 0.5], [0.1, 0.9]]
 
     for weight in weights:
-        for alpha in alphas:
-            for setting in config['stiff_config']:
-                print(setting)
-                if (setting == 'high_stiffness'):
-                    data, pyo_model, tf = robot_linear_dynamics_optimize_tf(alpha, weight, config)
-                else:
-                    data, pyo_model, tf = two_magnets_moving_optimize_tf(alpha, setting, weight, config)
-                
-                print("Tf value for " + setting + " is: " + str(tf))
-                plot_disp_vel(data, 'Both_magnets_moving', config)
-                plt.suptitle('Tf: ' + str(tf) + ', Stiffness: ' + setting)
+        for setting in config['stiff_config']:
+            print(setting)
+            if (setting == 'high_stiffness'):
+                pyo_model= robot_linear_dynamics_optimize_tf(weight, config)
+            else:
+                pyo_model = optimize_tf_and_vel( setting, weight, config)
+            
+            # Solve the optimization problem and return the optimal results
+            solved_model = pyomo_neos_solver(pyo_model, 'snopt', config)
+            data, _ , tf    = extract_results_for_optimal_tf(solved_model, setting, config)
+            
+            print("Tf value for " + setting + " is: " + str(tf))
 
-                # save the csv files         
-                filepath = str(Path(__file__).parents[1] / config['csv_path']/ exps[counter] / setting) + '.csv'
-                data.to_csv(filepath, index=False)
-                Data[setting] = data.to_dict()
+            plot_disp_vel(data, 'Both_magnets_moving', config)
+            plt.suptitle('Tf: ' + str(tf) + ', Stiffness: ' + setting)
+
+            # save the csv files         
+            filepath = str(Path(__file__).parents[1] / config['csv_path']/ exps[counter] / setting) + '.csv'
+            data.to_csv(filepath, index=False)
+            Data[setting] = data.to_dict()
         
         counter += 1
         plot_settings_together(Data, config)
@@ -292,10 +269,8 @@ with skip_run('skip', 'plot_the_optimal_values_LS_VS') as check, check():
         plt.tight_layout()
     plt.show()
 
-# Time optimal trajectory evaluation
-with skip_run('skip', 'all_weights_multi_obj_optimize_tf_and_vel') as check, check():    
-    alpha          = 0.8
-
+# Time optimal trajectory evaluation - All weights
+with skip_run('skip', 'optimize_tf_and_vel_all_weights') as check, check():    
     Data = collections.defaultdict()
     Pareto = collections.defaultdict()
 
@@ -309,9 +284,13 @@ with skip_run('skip', 'all_weights_multi_obj_optimize_tf_and_vel') as check, che
 
         for setting in config['stiff_config']:
             if (setting == 'high_stiffness'):
-                data, pyo_model, tf = robot_linear_dynamics_optimize_tf(alpha, weight, config)
+                pyo_model= robot_linear_dynamics_optimize_tf(weight, config)
             else:
-                data, pyo_model, tf = two_magnets_moving_optimize_tf(alpha, setting, weight, config)
+                pyo_model = optimize_tf_and_vel( setting, weight, config)
+            
+            # Solve the optimization problem and return the optimal results
+            solved_model = pyomo_neos_solver(pyo_model, 'snopt', config)
+            data, _ , tf    = extract_results_for_optimal_tf(solved_model, setting, config)
             
             print("Tf value for " + setting + " is: " + str(tf))
 
@@ -319,8 +298,11 @@ with skip_run('skip', 'all_weights_multi_obj_optimize_tf_and_vel') as check, che
             filepath = str(Path(__file__).parents[1] / config['pareto_path'] / str(counter) / setting) + '.csv'
             data.to_csv(filepath, index=False)
 
-            temp['tf'] = tf
-            temp[setting] = max(data['bv'] + data['hv'])
+            temp_time       = data['time']
+
+            temp['t_hit']   = temp_time[temp_time == 0.8*tf]
+            temp['tf']      = tf
+            temp[setting]   = data['bv'][temp_time == 0.8*tf] + data['hv'][temp_time == 0.8*tf]
 
         counter += 1
 
@@ -338,22 +320,67 @@ with skip_run('skip', 'plot_the_pareto_front') as check, check():
 
     plot_pareto_front(pareto_data,  config)
 
+# Separation sweep optimal solution
+with skip_run('skip', 'data_for_two_magnets_sep_sweep') as check, check():
+   
+    tf = 1.0
+    Separations = np.around(np.arange(0.035, 0.06, 0.01), decimals=3)
+    
+    df      = pd.DataFrame()
+
+    for sep in Separations:
+        pyo_model = user_provided_magnet_separation(tf, sep, config)
+
+        # Solve the optimization problem and return the optimal results
+        solved_model = pyomo_neos_solver(pyo_model, 'snopt', config)
+        data, _ , tf    = extract_results(solved_model, '', config)
+
+        temp    = pd.DataFrame({'sep': ["sep_" + str(round(i,3)) for i in data['md2']]})
+        data    = data.join(temp, lsuffix='_caller', rsuffix='_other')
+
+        tol_vel = pd.DataFrame({'total_vel' : data['bv'] + data['hv']})
+        data    = data.join(tol_vel, lsuffix='_caller', rsuffix='_other')
+
+        tol_disp= pd.DataFrame({'total_disp' : data['bd'] + data['hd']})
+        data    = data.join(tol_disp, lsuffix='_caller', rsuffix='_other')
+
+        if df.size > 0:
+            df = df.append(data, ignore_index=True)
+        else:
+            df = data
+        
+    # save the data
+    filepath = str(Path(__file__).parents[1] / config['two_moving_mags_sep_sweep_data'])
+    df.to_hdf(filepath, key='df', mode='w')
+
+with skip_run('skip', 'plot_sep_sweep_data') as check, check():
+    # load the data
+    filepath = str(Path(__file__).parents[1] / config['two_moving_mags_sep_sweep_data'])
+    df = pd.read_hdf(filepath, key='df')
+
+    fig,ax  = plt.subplots(2,1)
+
+    sns_palette = sns.color_palette("viridis", n_colors=3, desat=0.5)
+    # sns_palette = sns.cubehelix_palette(5, start=2, rot=-.75)
+
+    g1 = sns.relplot(x="time", y="total_vel", hue="sep", kind="line", palette=sns_palette, data=df, ax=ax[0])
+    g2 = sns.relplot(x="time", y="total_disp", hue="sep", kind="line", palette=sns_palette, data=df, ax=ax[1])
+    
+    plt.close(g1.fig)
+    plt.close(g2.fig) 
+    plt.tight_layout()
+
+    plt.show()
+
 
 
 with skip_run('skip', 'run_trajectory_optimization_of_the_robot_given_tf') as check, check():        
-    # for tf in range(1, 10, 1):
-    #     data = robot_linear_dynamics(tf, config)
+    pyo_model = robot_linear_dynamics(0.5, config)
 
-    #     _,ax = plt.subplots(2,1)
-    #     ax[0].plot(data['time'], data['bd'])
-    #     ax[0].set_xlabel('Time (s)')
-    #     ax[0].set_ylabel('Displacement (m)')
+    # Solve the optimization problem and return the optimal results
+    solved_model = pyomo_neos_solver(pyo_model, 'snopt', config)
+    data, _ , tf    = extract_results(solved_model, setting, config)
 
-    #     ax[1].plot(data['time'], data['bv'])
-    #     ax[1].set_xlabel('Time (s)')
-    #     ax[1].set_ylabel('Velocity (m/s)')
-    
-    data, _ = robot_linear_dynamics(0.5, config)
     _,ax = plt.subplots(2,1)
     ax[0].plot(data['time'], data['bd'], 'b-', label = '0.5 s')
     ax[0].plot([0.5, 0.5], [-0.1, 0.08], 'k--')
@@ -363,7 +390,12 @@ with skip_run('skip', 'run_trajectory_optimization_of_the_robot_given_tf') as ch
     ax[1].plot([0.5, 0.5], [-0.5, 0.5], 'k--')
     ax[1].plot([3, 3], [-0.5, 0.5], 'k--')
 
-    data, _ = robot_linear_dynamics(3, config)
+    pyo_model = robot_linear_dynamics(3, config)
+
+    # Solve the optimization problem and return the optimal results
+    solved_model = pyomo_neos_solver(pyo_model, 'snopt', config)
+    data, _ , tf    = extract_results(solved_model, setting, config)
+
     ax[0].plot(data['time'], data['bd'], 'r-', label = '3.0 s')
     ax[0].set_ylabel('Displacement (m)')
     ax[0].grid()
@@ -385,7 +417,11 @@ with skip_run('skip', 'run_trajectory_optimization_of_the_robot_for_tf') as chec
     weights = [0.5, 0.5]
 
     for alpha in alphas:
-        data = robot_linear_dynamics_optimize_tf(alpha, weights, config)
+        pyo_model= robot_linear_dynamics_optimize_tf(weight, config)
+        
+        # Solve the optimization problem and return the optimal results
+        solved_model = pyomo_neos_solver(pyo_model, 'snopt', config)
+        data, _ , tf    = extract_results_for_optimal_tf(solved_model, setting, config)
 
         _,ax = plt.subplots(3,1)
         ax[0].plot(data['t'], data['bd'])
@@ -405,14 +441,17 @@ with skip_run('skip', 'run_trajectory_optimization_of_the_robot_for_tf') as chec
     # plot the pareto front for optimal values corresponding to time and velocity of the robot
 
 
-
 # FIXME:
 # Optimizing for alpha is not working
 with skip_run('skip', 'run_trajectory_optimization_of_the_robot_for_tf_alpha') as check, check():       
     # weights for multi-objective optimization
     weights = [0.5, 0.5]
 
-    data = robot_linear_dynamics_optimize_tf_and_alpha(config)
+    pyo_model= robot_linear_dynamics_optimize_tf(weights, config)
+    
+    # Solve the optimization problem and return the optimal results
+    solved_model = pyomo_neos_solver(pyo_model, 'snopt', config)
+    data, _ , tf    = extract_results_for_optimal_tf(solved_model, setting, config)
 
     _,ax = plt.subplots(3,1)
     ax[0].plot(data['t'], data['bd'])

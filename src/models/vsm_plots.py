@@ -27,6 +27,7 @@ def plot_disp_vel(data, plot_title, config):
 
     ax[0].plot(t,baseD,color='k',linestyle='solid')
     ax[0].plot(t,baseD+hammerD,color='b',linestyle='dashed')
+    ax[0].plot(t, config['nail_pos'] + 0 * t, 'k--')
     ax[0].set_ylabel('Displacement (m)')
     ax[0].set_xlabel('Time (s)')
     ax[0].set_xlim([0,tf])
@@ -43,7 +44,7 @@ def plot_disp_vel(data, plot_title, config):
     ax[1].legend(['end-effector','end-effector+hammer'])
     ax[1].grid()
 
-    ax[2].plot(t, magnetD1, t, magnetD2, linestyle='solid')
+    ax[2].plot(t, magnetD1 + config['w'], t, magnetD2 - config['w'], color='k', linestyle='solid')
     ax[2].plot(t, hammerD)
     ax[2].set_xlim([0,tf])
     ax[2].set_ylim([-0.07, 0.07])
@@ -166,9 +167,9 @@ def plot_pareto_front(data,  config):
                 VS[counter-1, :]  = np.array([tf, vmax])
                 plt.plot(tf, vmax,  color = (1, 0, 0), marker='o')
                 if (counter > 1) and (counter <= 8):
-                    ax.text(tf-0.1, vmax+0.02, str(counter), fontsize=14, verticalalignment='top')
+                    ax.text(tf, vmax+0.02, str(counter), fontsize=14, verticalalignment='top')
                 elif counter > 8:
-                    ax.text(tf+0.05, vmax-0.01, str(counter), fontsize=14, verticalalignment='top')
+                    ax.text(tf, vmax-0.01, str(counter), fontsize=14, verticalalignment='top')
     
             
 
