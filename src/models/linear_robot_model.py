@@ -24,25 +24,33 @@ def robot_linear_dynamics(tf, config):
             m {pyomo model} -- model created in pyomo
             t {pyomo variable} -- independent time variable in pyomo
         """
-        if t < config['alpha'] * m.tf:
+        if t < config['alpha'] * (m.tf - 0.1):
             return m.baseD[t] <= config['nail_pos']
         elif t > config['alpha'] * m.tf:
-            return m.baseD[t] >= config['nail_pos']
+            return (config['nail_pos'], m.baseD[t], config['nail_pos'] + config['pos_threshold'] - 0.015)
         else:
             return pyo.Constraint.Skip
 
-    def traj_constr2(m, t):
-        """Constraints on the absolute displacement of the hammer to make sure that the hammer hits the nail
+    # def traj_constr2(m, t):
+    #     """Constraints on the absolute displacement of the hammer to make sure that the hammer hits the nail
         
-        Arguments:
-            m {pyomo model} -- model created in pyomo
-            t {pyomo variable} -- independent time variable in pyomo
-        """
-        if t > config['alpha']:
-            return m.baseD[t] <= config['nail_pos'] + config['pos_threshold'] - 0.015
-        else:
-            return pyo.Constraint.Skip
-
+    #     Arguments:
+    #         m {pyomo model} -- model created in pyomo
+    #         t {pyomo variable} -- independent time variable in pyomo
+    #     """
+    #     if t > config['alpha']:
+    #         if m.tf < 1.0:
+    #             return m.baseD[t] <= config['nail_pos'] + config['pos_threshold']
+    #         else:
+    #             # in HS, robot should not completely drive the nail
+    #             return m.baseD[t] <= config['nail_pos'] + config['pos_threshold'] - 0.015   
+    #     else:
+    #         return pyo.Constraint.Skip
+    def obj_function(m):
+        """ Obj function for multiobjective optimization - w1 * f1^2 + w2 * f2^2."""
+        return (m.baseV[round(alpha * tf, 4)])**2
+    
+    
     # Robot parameters
     freq            = config['freq']
 
@@ -85,14 +93,14 @@ def robot_linear_dynamics(tf, config):
     # Intermediate time constraints
     # constraints to make sure the hammer hits the nail in the optimization problem
     m.NailHit1    = pyo.Constraint(m.t, rule=lambda m, t: traj_constr1(m, t))
-    m.NailHit2    = pyo.Constraint(m.t, rule=lambda m, t: traj_constr2(m, t))
+    # m.NailHit2    = pyo.Constraint(m.t, rule=lambda m, t: traj_constr2(m, t))
 
     # Final time constraints
     m.constr.add(m.baseD[tf] == end_pos)
     m.constr.add(m.baseV[tf] == 0.0)
 
     # Cost function
-    m.obj       = pyo.Objective(expr= (m.baseV[round(alpha*tf, 4)]), sense = pyo.maximize)
+    m.obj       = pyo.Objective(expr= obj_function(m), sense = pyo.maximize)
 
     return m
 
@@ -115,27 +123,28 @@ def robot_linear_dynamics_optimize_tf(weights, config):
         if t < config['alpha']:
             return m.baseD[t] <= config['nail_pos']
         elif t > config['alpha']:
-            return m.baseD[t] >= config['nail_pos']
+            # constraints can be expressed in the form (lb, expr, ub)
+            return (config['nail_pos'], m.baseD[t], config['nail_pos'] + config['pos_threshold'])
         else:
             return pyo.Constraint.Skip
 
-    def traj_constr2(m, t, config):
-        """Constraints on the absolute displacement of the hammer to make sure that the hammer hits the nail
+    # def traj_constr2(m, t, config):
+    #     """Constraints on the absolute displacement of the hammer to make sure that the hammer hits the nail
         
-        Arguments:
-            m {pyomo model} -- model created in pyomo
-            t {pyomo variable} -- independent time variable in pyomo
-        """
-        if t > config['alpha']:
-            return m.baseD[t] <= config['nail_pos'] + config['pos_threshold'] - 0.01
-        else:
-            return pyo.Constraint.Skip
+    #     Arguments:
+    #         m {pyomo model} -- model created in pyomo
+    #         t {pyomo variable} -- independent time variable in pyomo
+    #     """
+    #     if t > config['alpha']:
+    #         return m.baseD[t] <= config['nail_pos'] + config['pos_threshold'] - 0.015
+    #     else:
+    #         return pyo.Constraint.Skip
 
     def obj_function(m, weights, config):
         """ Obj function for multiobjective optimization - w1 * ((f1 -f1l)/(f1u-f1l))^2 + w2 * ((f2-f2l)/(f2u-f2l))^2."""
 
         return - weights[0] * ((m.tf - config['tf_range'][0]) / (config['tf_range'][1] - config['tf_range'][0]))**2 
-        + weights[1] * (m.baseV[alpha] + 0.5)**2
+        + weights[1] * ((m.baseV[alpha] + 0.5))**2
 
 
     # Robot parameters
@@ -155,7 +164,7 @@ def robot_linear_dynamics_optimize_tf(weights, config):
     m               = pyo.ConcreteModel()
 
     # time variables
-    m.tf            = pyo.Var(within=pyo.NonNegativeReals, bounds=(config['tf_range'][0], config['tf_range'][1]), initialize=1.5)
+    m.tf            = pyo.Var(within=pyo.NonNegativeReals, bounds=(config['tf_range'][0], config['tf_range'][1]), initialize=1.0)
     tvec            = np.around(np.linspace(0, 1, freq + 1), decimals=4).tolist()
     m.t             = pyodae.ContinuousSet(bounds=(0,1), initialize=tvec)
 
@@ -180,7 +189,7 @@ def robot_linear_dynamics_optimize_tf(weights, config):
     
     # Intermediate time constraints
     m.NailHit1    = pyo.Constraint(m.t, rule=lambda m, t: traj_constr1(m, t, config))
-    m.NailHit2    = pyo.Constraint(m.t, rule=lambda m, t: traj_constr2(m, t, config))
+    # m.NailHit2    = pyo.Constraint(m.t, rule=lambda m, t: traj_constr2(m, t, config))
 
     # Final time constraints
     m.constr.add(m.baseD[1.0] == end_pos)

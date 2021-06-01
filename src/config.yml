@@ -20,7 +20,7 @@ right_mag_fixed     :       [-0.06,  -0.0002]
 no_mag_fixed        :       [-0.06,   0.06]
 
 # Robot parameters
-freq                :       500         # 200 Hz
+freq                :       500     # 200 Hz
 max_robot_acc       :       4.0
 max_robot_vel       :       0.5
 max_robot_disp      :       0.5
@@ -28,22 +28,36 @@ min_robot_disp      :      -0.3
 
 # Parameters based on the stiffness settings, vel- limits on hammer velocity, start - magnet starting position
 high_stiffness:
-  vel  : [-.5, .5]
+  # vel  : [-.45, .45]
+  vel  : [-0.5, 0.5]
+  acc  : [-4.0, 4.0]
   start: 0.03
+  plot_style : 'k-'
+  plot_label : 'HS'
 low_stiffness:
-  vel  : [-1, 1]
+  # vel  : [-0.8, 0.8]
+  vel  : [-1.8, 1.8]
+  acc  : [-22.0, 22.0]
   start: 0.06
+  plot_style : 'b-'
+  plot_label : 'LS'
 variable_stiffness:
-  vel  : [-0.7, 0.7]
+  vel  : [-1.8, 1.8]
+  acc  : [-60.0, 60.0]
   start: 0.03
+  plot_style : 'r-'
+  plot_label : 'VS'
 
 # Selection of parameters
-tf_range            :       [0.2, 3.0]
+tf_range            :       [0.2, 2.0]
 start_pos           :       0.0
 nail_pos            :       0.05
 end_pos             :       0.05
 alpha               :       0.8
 pos_threshold       :       0.03
+
+# plotting parameters
+fontsize            : 12
 
 # filepaths
 two_moving_mags_data                : 'data/processed/two_moving_mags.h5'

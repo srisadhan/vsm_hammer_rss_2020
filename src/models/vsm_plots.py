@@ -20,7 +20,10 @@ def plot_disp_vel(data, plot_title, config):
     hammerV     =   data['hv' ] 
     magnetD1    =   data['md1'] 
     magnetD2    =   data['md2'] 
-
+    
+    if 'impulseR' in data.keys():
+        impulseR = data['impulseR']
+        
     tf          = max(t)
 
     fig,ax = plt.subplots(3,1)
@@ -54,6 +57,9 @@ def plot_disp_vel(data, plot_title, config):
     ax[2].set_xlabel('Time (s)')
 
     fig.suptitle(plot_title)
+    
+    # plt.figure(10)
+    # plt.plot(t, impulseR)
 
 
 def plot_settings_together(Data, config):

@@ -3,7 +3,9 @@ import deepdish as dd
 from pathlib import Path
 from contextlib import contextmanager
 import pickle
-
+from dateutil import parser
+import sys
+import numpy as np 
 
 class skip(object):
     """A decorator to skip function execution.
@@ -123,3 +125,23 @@ def save_model_log(info, save_path):
         pickle.dump(info, f, pickle.HIGHEST_PROTOCOL)
 
     return None
+
+# parse the millisecs by matching the length of the total digits to 6 
+def parse_millisec(time_split):
+    return time_split.astype(float) / 1e6
+            
+        
+def parse_time(time_series):    
+    # extract the microseconds and append it using a '.'
+    time_split = time_series.str.rsplit(pat=':', n=1, expand=True) 
+    milli_secs = parse_millisec(time_split[1])
+   
+    time_str   = time_split[0] 
+
+    time_obj   = []
+    for count, val in enumerate(time_str):
+        time_secs = (parser.parse(val) - parser.parse(time_str[0])).total_seconds() + (milli_secs[count] - milli_secs[0])
+        time_obj.append(time_secs)
+    
+    return np.array(time_obj)
+             

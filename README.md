@@ -3,7 +3,8 @@ VSM_hammer_RSS_2020
 
 Optimal control of a Variable stiffness mechanism for hammering task
 
-Project Organization
+
+<!-- Project Organization
 ------------
 
     ├── LICENSE
@@ -52,6 +53,6 @@ Project Organization
     └── tox.ini            <- tox file with settings for running tox; see tox.testrun.org
 
 
---------
+-------- -->
 
 <p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
