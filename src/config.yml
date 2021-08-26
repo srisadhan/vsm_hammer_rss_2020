@@ -5,7 +5,8 @@ fixed_magnet        :       ['left', 'right']
 C1                  :       28.41     # magnet force parameter
 C2                  :       206.35    # magnet force parameter
 M                   :       0.2       # Mass of the hammer
-d                   :       2         # damping
+d                   :       0.5       # damping : 2
+mu                  :       0.032     # friction coefficient
 w                   :       0.03      # width of the magnet blocks
 u_max               :       0.06      # maximum magnet position
 u_min               :       0.0002  
@@ -69,3 +70,9 @@ max_vel_time_sweep                  : 'data/processed/max_vel_time_sweep.h5'
 csv_path                            : 'data/processed/csv'
 pareto_path                         : 'data/processed/pareto'
 pareto_front                        : 'data/processed/pareto_front.h5'
+
+# friction experiment files
+low_mass_file_1                     : 'data/friction_est/slider_friction_low_mass_1.csv'
+low_mass_file_2                     : 'data/friction_est/slider_friction_low_mass_2.csv'
+high_mass_file_1                    : 'data/friction_est/slider_friction_high_mass_1.csv'
+high_mass_file_2                    : 'data/friction_est/slider_friction_high_mass_2.csv'

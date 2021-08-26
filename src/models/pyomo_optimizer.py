@@ -22,7 +22,7 @@ from pyomo.opt.parallel import SolverManagerFactory
 #     return model
 
 def pyomo_solver(model, solver, config, neos=False):
-    """Solve the continuous NLP by discretizing it using backward finite difference and pyomo solvers
+    """Solve the continuous NLP by discretizing it using direct collocation and pyomo solvers
     
     Arguments:
         model {pyomo model} -- a concrete model build using Pyomo
